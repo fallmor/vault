@@ -43,7 +43,7 @@ func NewCredsApprole(addr, path, roleid, secretid string) *CredsApprole {
 }
 
 type GetCreds interface {
-	RetriveCreds() (VaultRespone, error)
+	RetrieveCreds() (*VaultRespone, error)
 }
 
 func (c *Creds) InitVault(ctx context.Context) (vault.Client, error) {
@@ -90,35 +90,48 @@ func (c *CredsApprole) InitVault(ctx context.Context) (vault.Client, error) {
 	return *client.Clone(), nil
 }
 
-func (c *Creds) RetrieveCreds() *VaultRespone {
+func (c *Creds) RetrieveCreds() (*VaultRespone, error) {
 	ctx := context.Background()
 	client, err := c.InitVault(ctx)
 	if err != nil {
-		log.Fatalln("Could not set the vault")
+		log.Println("Could not set the vault")
+		return nil, err
 	}
 
 	resp, err := client.Secrets.KvV2Read(ctx, c.vault_path, vault.WithMountPath("secret"))
 	if err != nil {
 		log.Printf("Could not retrieve the secret %s", c.vault_path)
+		return nil, err
 	}
 	return &VaultRespone{
 		token:      resp.Data.Data,
 		expireTime: "",
-	}
+	}, nil
 }
 
-func (c *CredsApprole) RetrieveCreds() *VaultRespone {
+func (c *CredsApprole) RetrieveCreds() (*VaultRespone, error) {
 	ctx := context.Background()
 	client, err := c.InitVault(ctx)
 	if err != nil {
-		log.Fatalln("Could not set the vault")
+		log.Println("Could not set the vault")
+		return nil, err
 	}
 	resp, err := client.Secrets.KvV2Read(ctx, c.vault_path, vault.WithMountPath("secret"))
 	if err != nil {
 		log.Printf("Could not retrieve the secret %s", c.vault_path)
+		return nil, err
 	}
 	return &VaultRespone{
 		token:      resp.Data.Data,
 		expireTime: "",
+	}, nil
+}
+
+func GetSecret(gt GetCreds) (*VaultRespone, error) {
+	resp, err := gt.RetrieveCreds()
+	if err != nil {
+		log.Println("Could not get the secrets")
+		return nil, err
 	}
+	return resp, nil
 }
