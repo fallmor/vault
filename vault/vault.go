@@ -21,8 +21,8 @@ type CredsApprole struct {
 	approle_secretid string
 }
 type VaultRespone struct {
-	token      map[string]interface{}
-	expireTime string
+	Token      map[string]interface{}
+	ExpireTime string
 }
 
 func NewCreds(addr, path, token string) *Creds {
@@ -68,25 +68,31 @@ func (c *CredsApprole) InitVault(ctx context.Context) (vault.Client, error) {
 		vault.WithRequestTimeout(30*time.Second),
 	)
 	if err != nil {
-		log.Print("could not initialize vault")
+		log.Println("could not initialize vault")
 		return vault.Client{}, err
 	}
 
 	vaultoken, err := client.Auth.AppRoleLogin(ctx, schema.AppRoleLoginRequest{
 		RoleId:   c.approle_roleid,
 		SecretId: c.approle_secretid,
-	}, vault.WithMountPath("auth/approle/login"))
+	},
+		vault.WithMountPath("approle"))
 	if err != nil {
-		log.Fatalf("Could not retrieve the token because of the error %v", err)
+		log.Printf("Could not retrieve the token with approle because of the error %v", err)
+		return vault.Client{}, err
 	}
 
 	if vaultoken == nil || vaultoken.Auth == nil {
-		log.Fatal("Login success but no authentication infos received")
-	}
-	if err := client.SetToken(vaultoken.Auth.ClientToken); err != nil {
-		log.Print("Could not connect to vault")
+		log.Println("Login success but no authentication infos received")
 		return vault.Client{}, err
 	}
+	if err := client.SetToken(vaultoken.Auth.ClientToken); err != nil {
+		log.Println("Could not connect to vault")
+		return vault.Client{}, err
+	}
+
+	// Print token details
+
 	return *client.Clone(), nil
 }
 
@@ -104,8 +110,8 @@ func (c *Creds) RetrieveCreds() (*VaultRespone, error) {
 		return nil, err
 	}
 	return &VaultRespone{
-		token:      resp.Data.Data,
-		expireTime: "",
+		Token:      resp.Data.Data,
+		ExpireTime: "",
 	}, nil
 }
 
@@ -122,8 +128,8 @@ func (c *CredsApprole) RetrieveCreds() (*VaultRespone, error) {
 		return nil, err
 	}
 	return &VaultRespone{
-		token:      resp.Data.Data,
-		expireTime: "",
+		Token:      resp.Data.Data,
+		ExpireTime: "",
 	}, nil
 }
 
