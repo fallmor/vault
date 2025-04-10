@@ -13,6 +13,10 @@ type GitlabInfo struct {
 	GitlabNs string
 	BaseURL  string
 }
+type GitlabVariable struct {
+	Key   string
+	Value string
+}
 
 type GitlabResp struct {
 	ProjectName string
@@ -52,7 +56,8 @@ func (g *GitlabInfo) ListProject() ([]*GitlabResp, error) {
 	}
 
 	projList, _, err := git.Projects.ListProjects(&gitlab.ListProjectsOptions{
-		Archived: gitlab.Ptr(false),
+		Archived:   gitlab.Ptr(false),
+		Visibility: gitlab.Ptr(gitlab.VisibilityValue("private")),
 		ListOptions: gitlab.ListOptions{
 			PerPage: 100,
 		},
@@ -70,4 +75,62 @@ func (g *GitlabInfo) ListProject() ([]*GitlabResp, error) {
 	}
 
 	return respList, nil
+}
+func (g *GitlabInfo) ListVariables(gr *GitlabResp) ([]*GitlabVariable, error) {
+	variables := []*GitlabVariable{}
+	ctx := context.Background()
+	git, err := g.Initgitlab(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	vars, _, err := git.ProjectVariables.ListVariables(gr.ProjectId, &gitlab.ListProjectVariablesOptions{})
+	if err != nil {
+		return nil, err
+	}
+
+	for _, v := range vars {
+		variables = append(variables, &GitlabVariable{
+			Key:   v.Key,
+			Value: v.Value,
+		})
+	}
+
+	return variables, nil
+}
+
+func (g *GitlabInfo) CreateVariable(gr *GitlabResp, v *GitlabVariable) error {
+	ctx := context.Background()
+	git, err := g.Initgitlab(ctx)
+	if err != nil {
+		return err
+	}
+
+	_, _, err = git.ProjectVariables.CreateVariable(gr.ProjectId, &gitlab.CreateProjectVariableOptions{
+		Key:       &v.Key,
+		Value:     &v.Value,
+		Protected: gitlab.Ptr(false),
+	})
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (g *GitlabInfo) UpdateVariable(gr *GitlabResp, v *GitlabVariable) error {
+	ctx := context.Background()
+	git, err := g.Initgitlab(ctx)
+	if err != nil {
+		return err
+	}
+
+	_, _, err = git.ProjectVariables.UpdateVariable(gr.ProjectId, v.Key, &gitlab.UpdateProjectVariableOptions{
+		Value: &v.Value,
+	})
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
