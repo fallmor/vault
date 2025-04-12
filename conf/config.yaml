@@ -1,0 +1,13 @@
+
+zone: 
+  production:
+    - mor-prod1
+    - mor-prod2
+  development:
+    - mor-dev1
+    - mor-dev2
+gitlab-ci-file: '.gitlab-ci.yaml'
+gitlab-ci-content: |
+  include:
+    - project: 'gitlab-ci-templates'
+      file: 'common.yml'
