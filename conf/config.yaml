@@ -1,13 +1,21 @@
 
 zone: 
   production:
-    - mor-prod1
-    - mor-prod2
+    vault_addr: "http://127.0.0.1:8200"
+    # my-group5035215 is the group id for the gitlab group my-group-production
+    gitlab_namespace: "my-group5035215"
   development:
-    - mor-dev1
-    - mor-dev2
-gitlab-ci-file: '.gitlab-ci.yaml'
+    vault_addr: "http://127.0.0.1:8200"
+    gitlab_namespace: "my-group-staging"
+
 gitlab-ci-content: |
   include:
     - project: 'gitlab-ci-templates'
       file: 'common.yml'
+gitlab-readme-content: |
+  # GitLab CI/CD Configuration
+
+  This repository contains the GitLab CI/CD configuration for the project {{ .ProjectName }} .
+
+  ## CI/CD Configuration
+  

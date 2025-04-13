@@ -1,9 +1,11 @@
 package gitlab
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"strconv"
+	"text/template"
 
 	gitlab "gitlab.com/gitlab-org/api/client-go"
 )
@@ -55,12 +57,8 @@ func (g *GitlabInfo) ListProject() ([]*GitlabResp, error) {
 		return []*GitlabResp{}, err
 	}
 
-	projList, _, err := git.Projects.ListProjects(&gitlab.ListProjectsOptions{
-		Archived:   gitlab.Ptr(false),
-		Visibility: gitlab.Ptr(gitlab.VisibilityValue("private")),
-		ListOptions: gitlab.ListOptions{
-			PerPage: 100,
-		},
+	projList, _, err := git.Groups.ListGroupProjects(g.GitlabNs, &gitlab.ListGroupProjectsOptions{
+		Archived: gitlab.Ptr(false),
 	})
 	if err != nil {
 		return []*GitlabResp{}, err
@@ -83,16 +81,76 @@ func (g *GitlabInfo) AddGitlabCiFile(gr *GitlabResp, content string) error {
 	if err != nil {
 		return err
 	}
-	_, _, err = git.RepositoryFiles.CreateFile(gr.ProjectId, ".gitlab-ci.yaml", &gitlab.CreateFileOptions{
-		Branch:        gitlab.Ptr("main"),
-		CommitMessage: gitlab.Ptr("Add .gitlab-ci.yaml"),
-		Content:       gitlab.Ptr(content),
-	})
+	if exists, _ := g.CheckFileExists(gr, ".gitlab-ci.yaml"); !exists {
+		_, _, err = git.RepositoryFiles.CreateFile(gr.ProjectId, ".gitlab-ci.yaml", &gitlab.CreateFileOptions{
+			Branch:        gitlab.Ptr("main"),
+			CommitMessage: gitlab.Ptr("Add .gitlab-ci.yaml"),
+			Content:       gitlab.Ptr(content),
+		})
+	} else {
+		_, _, err = git.RepositoryFiles.UpdateFile(gr.ProjectId, ".gitlab-ci.yaml", &gitlab.UpdateFileOptions{
+			Branch:        gitlab.Ptr("main"),
+			CommitMessage: gitlab.Ptr("Update .gitlab-ci.yaml"),
+			Content:       gitlab.Ptr(content),
+		})
+	}
 	if err != nil {
 		return err
 	}
 
 	return nil
+}
+
+func (g *GitlabInfo) AddGitlabReadmeFile(gr *GitlabResp, content string) error {
+	ctx := context.Background()
+	git, err := g.Initgitlab(ctx)
+	if err != nil {
+		return err
+	}
+	tpl, err := template.New("readme").Parse(content)
+	if err != nil {
+		return err
+	}
+	var buf bytes.Buffer
+	err = tpl.Execute(&buf, map[string]interface{}{
+		"ProjectName": gr.ProjectName,
+	})
+	if err != nil {
+		return err
+	}
+	if exists, _ := g.CheckFileExists(gr, "README.md"); !exists {
+		_, _, err = git.RepositoryFiles.CreateFile(gr.ProjectId, "README.md", &gitlab.CreateFileOptions{
+			Branch:        gitlab.Ptr("main"),
+			CommitMessage: gitlab.Ptr("Add README.md"),
+			Content:       gitlab.Ptr(buf.String()),
+		})
+	} else {
+		_, _, err = git.RepositoryFiles.UpdateFile(gr.ProjectId, "README.md", &gitlab.UpdateFileOptions{
+			Branch:        gitlab.Ptr("main"),
+			CommitMessage: gitlab.Ptr("Update README.md"),
+			Content:       gitlab.Ptr(buf.String()),
+		})
+	}
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+func (g *GitlabInfo) CheckFileExists(gr *GitlabResp, filePath string) (bool, error) {
+	ctx := context.Background()
+	git, err := g.Initgitlab(ctx)
+	if err != nil {
+		return false, err
+	}
+	_, _, err = git.RepositoryFiles.GetFile(gr.ProjectId, filePath, &gitlab.GetFileOptions{
+		Ref: gitlab.Ptr("main"),
+	})
+	if err != nil {
+		return false, err
+	}
+
+	return true, nil
 }
 
 func (g *GitlabInfo) ListVariables(gr *GitlabResp) ([]*GitlabVariable, error) {
