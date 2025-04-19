@@ -21,6 +21,7 @@ type GitopsInfo struct {
 	ProductLine string
 	GitlabNs    string
 	VaultAddr   string
+	AuthType    string
 }
 
 var k = koanf.New(".")
@@ -36,13 +37,24 @@ func main() {
 	vault_addr := gi.VaultAddr
 	role_id := os.Getenv("role_id")
 	secret_id := os.Getenv("secret_id")
+	token := os.Getenv("vault_token")
 	gitlab_url := os.Getenv("gitlab_url")
 
 	var reqApprole vault.GetCreds
-	if gi.ProductLine == "prd" {
-		reqApprole = vault.NewCredsApprole(vault_addr, "mor/prod/gitlab", role_id, secret_id)
-	} else {
-		reqApprole = vault.NewCredsApprole(vault_addr, "mor/stg/gitlab", role_id, secret_id)
+
+	switch gi.AuthType {
+	case "approle":
+		if gi.ProductLine == "prd" {
+			reqApprole = vault.NewCredsApprole(vault_addr, "mor/prod/gitlab", role_id, secret_id)
+		} else {
+			reqApprole = vault.NewCredsApprole(vault_addr, "mor/stg/gitlab", role_id, secret_id)
+		}
+	case "token":
+		if gi.ProductLine == "prd" {
+			reqApprole = vault.NewCreds(vault_addr, "mor/prod/gitlab", token)
+		} else {
+			reqApprole = vault.NewCreds(vault_addr, "mor/stg/gitlab", token)
+		}
 	}
 
 	gitlab_info := &gitlab.GitlabInfo{
@@ -83,7 +95,6 @@ func main() {
 
 	var wg sync.WaitGroup
 
-	// Start worker goroutines
 	for i := range 5 {
 		wg.Add(1)
 		go func(workerID int) {
@@ -111,7 +122,8 @@ func main() {
 				}
 
 				for _, v := range vars {
-					if err := gitlab_info.UpdateVariable(project, v.Key, gi.ClusterName); err != nil {
+					if err := gitlab_info.UpdateVariable(project, v); err != nil {
+
 						errorChan <- fmt.Errorf("could not update variable %s for project %s: %v", v.Key, project.ProjectName, err)
 					}
 				}
@@ -127,7 +139,6 @@ func main() {
 		close(projectChan)
 	}()
 
-	// Wait for all workers to complete
 	wg.Wait()
 	close(doneChan)
 
@@ -180,6 +191,7 @@ func loadConfig() *GitopsInfo {
 	}
 	cmd.String("product_line", "stg", "product line to deploy (prd, stg)")
 	cmd.String("cluster_name", "test1", "the cluster name to deploy")
+	cmd.String("auth_type", " ", "the authentication type (vault token or approle)")
 	cmd.Parse(os.Args[1:])
 
 	cFiles, _ := cmd.GetStringSlice("conf")
@@ -200,6 +212,7 @@ func loadConfig() *GitopsInfo {
 			ClusterName: k.String("cluster_name"),
 			GitlabNs:    k.String("zone.production.gitlab_namespace"),
 			VaultAddr:   k.String("zone.production.vault_addr"),
+			AuthType:    k.String("auth_type"),
 		}
 	case "stg":
 		gi = &GitopsInfo{
@@ -207,6 +220,7 @@ func loadConfig() *GitopsInfo {
 			ClusterName: k.String("cluster_name"),
 			GitlabNs:    k.String("zone.development.gitlab_namespace"),
 			VaultAddr:   k.String("zone.development.vault_addr"),
+			AuthType:    k.String("auth_type"),
 		}
 	}
 	fmt.Printf("Gitops Info: %+v\n", gi)

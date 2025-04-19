@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"strconv"
+	"strings"
 	"text/template"
 
 	gitlab "gitlab.com/gitlab-org/api/client-go"
@@ -153,8 +154,7 @@ func (g *GitlabInfo) CheckFileExists(gr *GitlabResp, filePath string) (bool, err
 	return true, nil
 }
 
-func (g *GitlabInfo) ListVariables(gr *GitlabResp) ([]*GitlabVariable, error) {
-	variables := []*GitlabVariable{}
+func (g *GitlabInfo) ListVariables(gr *GitlabResp) ([]*gitlab.ProjectVariable, error) {
 	ctx := context.Background()
 	git, err := g.Initgitlab(ctx)
 	if err != nil {
@@ -166,14 +166,7 @@ func (g *GitlabInfo) ListVariables(gr *GitlabResp) ([]*GitlabVariable, error) {
 		return nil, err
 	}
 
-	for _, v := range vars {
-		variables = append(variables, &GitlabVariable{
-			Key:   v.Key,
-			Value: v.Value,
-		})
-	}
-
-	return variables, nil
+	return vars, nil
 }
 
 func (g *GitlabInfo) CreateVariable(gr *GitlabResp, v *GitlabVariable) error {
@@ -195,18 +188,35 @@ func (g *GitlabInfo) CreateVariable(gr *GitlabResp, v *GitlabVariable) error {
 	return nil
 }
 
-func (g *GitlabInfo) UpdateVariable(gr *GitlabResp, key, val string) error {
+func (g *GitlabInfo) UpdateVariable(gr *GitlabResp, variable *gitlab.ProjectVariable) error {
 	ctx := context.Background()
 	git, err := g.Initgitlab(ctx)
 	if err != nil {
 		return err
 	}
 	// TODO: Check variable type and if file concatenate content
-	_, _, err = git.ProjectVariables.UpdateVariable(gr.ProjectId, key, &gitlab.UpdateProjectVariableOptions{
-		Value: &val,
-	})
-	if err != nil {
-		return err
+
+	switch variable.VariableType {
+	case gitlab.FileVariableType:
+		// compute
+		// get the file content and parse it
+		content := strings.Split(variable.Value, ":")
+		content = append(content, gr.ProjectId)
+
+		updateedVal := strings.Join(content, ":")
+		_, _, err = git.ProjectVariables.UpdateVariable(gr.ProjectId, variable.Key, &gitlab.UpdateProjectVariableOptions{
+			Value: &updateedVal,
+		})
+		if err != nil {
+			return err
+		}
+	default:
+		_, _, err = git.ProjectVariables.UpdateVariable(gr.ProjectId, variable.Key, &gitlab.UpdateProjectVariableOptions{
+			Value: &gr.ProjectId,
+		})
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil

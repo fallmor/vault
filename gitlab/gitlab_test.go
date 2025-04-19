@@ -155,3 +155,14 @@ func TestListProject(t *testing.T) {
 		})
 	}
 }
+
+func ListVariables(t *testing.T) {
+
+}
+
+func CreateVariable(t *testing.T) {
+
+}
+func UpdateVariable(t *testing.T) {
+
+}
