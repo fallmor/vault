@@ -19,6 +19,7 @@ Un programme en Go qui effectue les tâches suivantes :
 3. Listez les arguments possibles.
     ```bash
     go run main --help
+    ```
 
 
 
