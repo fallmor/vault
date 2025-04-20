@@ -95,7 +95,7 @@ func main() {
 
 	var wg sync.WaitGroup
 
-	for i := range 5 {
+	for i := range len(projects) {
 		wg.Add(1)
 		go func(workerID int) {
 			defer wg.Done()
@@ -123,7 +123,6 @@ func main() {
 
 				for _, v := range vars {
 					if err := gitlab_info.UpdateVariable(project, v); err != nil {
-
 						errorChan <- fmt.Errorf("could not update variable %s for project %s: %v", v.Key, project.ProjectName, err)
 					}
 				}
