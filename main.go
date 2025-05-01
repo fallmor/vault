@@ -6,6 +6,7 @@ import (
 	"gitlab-vault/vault"
 	"log"
 	"os"
+	"runtime/pprof"
 	"sync"
 
 	"github.com/knadh/koanf/parsers/toml"
@@ -24,10 +25,20 @@ type GitopsInfo struct {
 	AuthType    string
 }
 
+type ProfilingInfo struct {
+	CpuProfile string
+	MemProfile string
+}
+
 var k = koanf.New(".")
 
 func main() {
-	gi := loadConfig()
+
+	gi, prof := loadConfig()
+
+	if prof.CpuProfile != "" || prof.MemProfile != "" {
+		go Profiling(prof)
+	}
 	fmt.Printf("Gitops Info: %+v\n", gi)
 
 	if err := validateEnvVars(); err != nil {
@@ -130,7 +141,6 @@ func main() {
 		}(i)
 	}
 
-	// Send projects to workers
 	go func() {
 		for _, project := range projects {
 			projectChan <- project
@@ -159,6 +169,7 @@ func main() {
 			return
 		}
 	}
+
 }
 
 func validateEnvVars() error {
@@ -176,7 +187,7 @@ func validateEnvVars() error {
 	return nil
 }
 
-func loadConfig() *GitopsInfo {
+func loadConfig() (*GitopsInfo, *ProfilingInfo) {
 	f := file.Provider("conf/config.yaml")
 	log.Printf("Loading config from %v", f)
 	if err := k.Load(f, yaml.Parser()); err != nil {
@@ -188,9 +199,12 @@ func loadConfig() *GitopsInfo {
 		fmt.Println(cmd.FlagUsages())
 		os.Exit(0)
 	}
+	// set command line flags
 	cmd.String("product_line", "stg", "product line to deploy (prd, stg)")
 	cmd.String("cluster_name", "test1", "the cluster name to deploy")
 	cmd.String("auth_type", " ", "the authentication type (vault token or approle)")
+	cmd.String("cpu_profile", "cpu.pprof", "the cpu profile")
+	cmd.String("mem_profile", "mem.pprof", "the memory profile")
 	cmd.Parse(os.Args[1:])
 
 	cFiles, _ := cmd.GetStringSlice("conf")
@@ -222,6 +236,39 @@ func loadConfig() *GitopsInfo {
 			AuthType:    k.String("auth_type"),
 		}
 	}
-	fmt.Printf("Gitops Info: %+v\n", gi)
-	return gi
+
+	profiling := &ProfilingInfo{
+		CpuProfile: k.String("cpu_profile"),
+		MemProfile: k.String("mem_profile"),
+	}
+	return gi, profiling
+}
+
+func Profiling(prof *ProfilingInfo) {
+
+	// Check if profiling is enabled for CPU and memory
+	if prof.CpuProfile != "" {
+		log.Printf("CPU profiling is enabled, writing to %s", prof.CpuProfile)
+		f, err := os.Create(prof.CpuProfile)
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer f.Close()
+		if err := pprof.StartCPUProfile(f); err != nil {
+			log.Fatal(err)
+		}
+		defer pprof.StopCPUProfile()
+	}
+
+	if prof.MemProfile != "" {
+		log.Printf("Memory profiling is enabled, writing to %s", prof.MemProfile)
+		f, err := os.Create(prof.MemProfile)
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer f.Close()
+		if err := pprof.Lookup("heap").WriteTo(f, 0); err != nil {
+			log.Fatal(err)
+		}
+	}
 }

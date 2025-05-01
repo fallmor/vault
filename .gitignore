@@ -1,2 +1,4 @@
 .envrc
 .env
+cpu.pprof
+mem.pprof
