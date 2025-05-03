@@ -50,9 +50,9 @@ func (g *GitlabInfo) Initgitlab(ctx context.Context) (*GitlabClient, error) {
 	}, nil
 }
 
-func (g *GitlabInfo) ListProject() ([]*GitlabResp, error) {
+func (g *GitlabInfo) ListProject(ctx context.Context) ([]*GitlabResp, error) {
 	respList := []*GitlabResp{}
-	ctx := context.Background()
+
 	git, err := g.Initgitlab(ctx)
 	if err != nil {
 		return []*GitlabResp{}, err
@@ -76,13 +76,12 @@ func (g *GitlabInfo) ListProject() ([]*GitlabResp, error) {
 	return respList, nil
 }
 
-func (g *GitlabInfo) AddGitlabCiFile(gr *GitlabResp, content string) error {
-	ctx := context.Background()
+func (g *GitlabInfo) AddGitlabCiFile(ctx context.Context, gr *GitlabResp, content string) error {
 	git, err := g.Initgitlab(ctx)
 	if err != nil {
 		return err
 	}
-	if exists, _ := g.CheckFileExists(gr, ".gitlab-ci.yaml"); !exists {
+	if exists, _ := g.CheckFileExists(ctx, gr, ".gitlab-ci.yaml"); !exists {
 		_, _, err = git.RepositoryFiles.CreateFile(gr.ProjectId, ".gitlab-ci.yaml", &gitlab.CreateFileOptions{
 			Branch:        gitlab.Ptr("main"),
 			CommitMessage: gitlab.Ptr("Add .gitlab-ci.yaml"),
@@ -102,8 +101,7 @@ func (g *GitlabInfo) AddGitlabCiFile(gr *GitlabResp, content string) error {
 	return nil
 }
 
-func (g *GitlabInfo) AddGitlabReadmeFile(gr *GitlabResp, content string) error {
-	ctx := context.Background()
+func (g *GitlabInfo) AddGitlabReadmeFile(ctx context.Context, gr *GitlabResp, content string) error {
 	git, err := g.Initgitlab(ctx)
 	if err != nil {
 		return err
@@ -119,7 +117,7 @@ func (g *GitlabInfo) AddGitlabReadmeFile(gr *GitlabResp, content string) error {
 	if err != nil {
 		return err
 	}
-	if exists, _ := g.CheckFileExists(gr, "README.md"); !exists {
+	if exists, _ := g.CheckFileExists(ctx, gr, "README.md"); !exists {
 		_, _, err = git.RepositoryFiles.CreateFile(gr.ProjectId, "README.md", &gitlab.CreateFileOptions{
 			Branch:        gitlab.Ptr("main"),
 			CommitMessage: gitlab.Ptr("Add README.md"),
@@ -138,8 +136,7 @@ func (g *GitlabInfo) AddGitlabReadmeFile(gr *GitlabResp, content string) error {
 
 	return nil
 }
-func (g *GitlabInfo) CheckFileExists(gr *GitlabResp, filePath string) (bool, error) {
-	ctx := context.Background()
+func (g *GitlabInfo) CheckFileExists(ctx context.Context, gr *GitlabResp, filePath string) (bool, error) {
 	git, err := g.Initgitlab(ctx)
 	if err != nil {
 		return false, err
@@ -154,8 +151,7 @@ func (g *GitlabInfo) CheckFileExists(gr *GitlabResp, filePath string) (bool, err
 	return true, nil
 }
 
-func (g *GitlabInfo) ListVariables(gr *GitlabResp) ([]*gitlab.ProjectVariable, error) {
-	ctx := context.Background()
+func (g *GitlabInfo) ListVariables(ctx context.Context, gr *GitlabResp) ([]*gitlab.ProjectVariable, error) {
 	git, err := g.Initgitlab(ctx)
 	if err != nil {
 		return nil, err
@@ -169,8 +165,7 @@ func (g *GitlabInfo) ListVariables(gr *GitlabResp) ([]*gitlab.ProjectVariable, e
 	return vars, nil
 }
 
-func (g *GitlabInfo) CreateVariable(gr *GitlabResp, v *GitlabVariable) error {
-	ctx := context.Background()
+func (g *GitlabInfo) CreateVariable(ctx context.Context, gr *GitlabResp, v *GitlabVariable) error {
 	git, err := g.Initgitlab(ctx)
 	if err != nil {
 		return err
@@ -188,8 +183,7 @@ func (g *GitlabInfo) CreateVariable(gr *GitlabResp, v *GitlabVariable) error {
 	return nil
 }
 
-func (g *GitlabInfo) UpdateVariable(gr *GitlabResp, variable *gitlab.ProjectVariable) error {
-	ctx := context.Background()
+func (g *GitlabInfo) UpdateVariable(ctx context.Context, gr *GitlabResp, variable *gitlab.ProjectVariable) error {
 	git, err := g.Initgitlab(ctx)
 	if err != nil {
 		return err

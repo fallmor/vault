@@ -43,7 +43,7 @@ func NewCredsApprole(addr, path, roleid, secretid string) *CredsApprole {
 }
 
 type GetCreds interface {
-	RetrieveCreds() (*VaultRespone, error)
+	RetrieveCreds(context.Context) (*VaultRespone, error)
 }
 
 func (c *Creds) InitVault(ctx context.Context) (vault.Client, error) {
@@ -96,8 +96,7 @@ func (c *CredsApprole) InitVault(ctx context.Context) (vault.Client, error) {
 	return *client.Clone(), nil
 }
 
-func (c *Creds) RetrieveCreds() (*VaultRespone, error) {
-	ctx := context.Background()
+func (c *Creds) RetrieveCreds(ctx context.Context) (*VaultRespone, error) {
 	client, err := c.InitVault(ctx)
 	if err != nil {
 		log.Println("Could not set the vault")
@@ -115,8 +114,7 @@ func (c *Creds) RetrieveCreds() (*VaultRespone, error) {
 	}, nil
 }
 
-func (c *CredsApprole) RetrieveCreds() (*VaultRespone, error) {
-	ctx := context.Background()
+func (c *CredsApprole) RetrieveCreds(ctx context.Context) (*VaultRespone, error) {
 	client, err := c.InitVault(ctx)
 	if err != nil {
 		log.Println("Could not set the vault")
@@ -133,8 +131,8 @@ func (c *CredsApprole) RetrieveCreds() (*VaultRespone, error) {
 	}, nil
 }
 
-func GetSecret(gt GetCreds) (*VaultRespone, error) {
-	resp, err := gt.RetrieveCreds()
+func GetSecret(gt GetCreds, ctx context.Context) (*VaultRespone, error) {
+	resp, err := gt.RetrieveCreds(ctx)
 	if err != nil {
 		log.Println("Could not get the secrets")
 		return nil, err

@@ -1,6 +1,7 @@
 package vault
 
 import (
+	"context"
 	"testing"
 
 	"github.com/hashicorp/vault/api"
@@ -35,7 +36,7 @@ func TestRetrieveCreds(t *testing.T) {
 
 	// Initialize Creds and test RetrieveCreds
 	creds := NewCreds(client.Address(), "test", testToken)
-	resp, err := creds.RetrieveCreds()
+	resp, err := creds.RetrieveCreds(context.Background())
 	if err != nil {
 		t.Fatalf("failed to retrieve creds: %v", err)
 	}
@@ -110,7 +111,7 @@ func TestRetrieveCredsApprole(t *testing.T) {
 	}
 
 	credsApprole := NewCredsApprole(client.Address(), "test", roleID, secretID)
-	resp, err := credsApprole.RetrieveCreds()
+	resp, err := credsApprole.RetrieveCreds(context.Background())
 	if err != nil {
 		t.Fatalf("failed to retrieve creds with approle: %v", err)
 	}

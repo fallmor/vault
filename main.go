@@ -1,13 +1,16 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"gitlab-vault/gitlab"
 	"gitlab-vault/vault"
 	"log"
 	"os"
+	"os/signal"
 	"runtime/pprof"
 	"sync"
+	"syscall"
 
 	"github.com/knadh/koanf/parsers/toml"
 	"github.com/knadh/koanf/parsers/yaml"
@@ -74,7 +77,13 @@ func main() {
 	}
 
 	log.Println("Getting Vault token...")
-	resp, err := vault.GetSecret(reqApprole)
+	// interript signal chan
+	mychan := make(chan os.Signal, 1)
+	signal.Notify(mychan, syscall.SIGINT, syscall.SIGTERM)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	resp, err := vault.GetSecret(reqApprole, ctx)
 	if err != nil {
 		log.Fatalf("Could not get credentials: %v", err)
 	}
@@ -93,7 +102,7 @@ func main() {
 
 	// List GitLab projects
 	log.Println("Listing GitLab projects...")
-	projects, err := gitlab_info.ListProject()
+	projects, err := gitlab_info.ListProject(ctx)
 	if err != nil {
 		log.Fatalf("Could not list projects: %v", err)
 	}
@@ -106,7 +115,7 @@ func main() {
 
 	var wg sync.WaitGroup
 
-	for i := range len(projects) {
+	for i := range projects {
 		wg.Add(1)
 		go func(workerID int) {
 			defer wg.Done()
@@ -114,26 +123,26 @@ func main() {
 				log.Printf("Worker %d processing project: %s", workerID, project.ProjectName)
 
 				log.Printf("Adding Gitlab CI file for project %s", project.ProjectName)
-				if err := gitlab_info.AddGitlabCiFile(project, k.String("gitlab-ci-content")); err != nil {
+				if err := gitlab_info.AddGitlabCiFile(ctx, project, k.String("gitlab-ci-content")); err != nil {
 					errorChan <- fmt.Errorf("could not add Gitlab CI file for project %s: %v", project.ProjectName, err)
 					continue
 				}
 
 				log.Printf("Adding Gitlab README file for project %s", project.ProjectName)
-				if err := gitlab_info.AddGitlabReadmeFile(project, k.String("gitlab-readme-content")); err != nil {
+				if err := gitlab_info.AddGitlabReadmeFile(ctx, project, k.String("gitlab-readme-content")); err != nil {
 					errorChan <- fmt.Errorf("could not add Gitlab README file for project %s: %v", project.ProjectName, err)
 					continue
 				}
 
 				log.Printf("Processing variables for project %s", project.ProjectName)
-				vars, err := gitlab_info.ListVariables(project)
+				vars, err := gitlab_info.ListVariables(ctx, project)
 				if err != nil {
 					errorChan <- fmt.Errorf("could not list variables for project %s: %v", project.ProjectName, err)
 					continue
 				}
 
 				for _, v := range vars {
-					if err := gitlab_info.UpdateVariable(project, v); err != nil {
+					if err := gitlab_info.UpdateVariable(ctx, project, v); err != nil {
 						errorChan <- fmt.Errorf("could not update variable %s for project %s: %v", v.Key, project.ProjectName, err)
 					}
 				}
@@ -148,14 +157,22 @@ func main() {
 		close(projectChan)
 	}()
 
-	wg.Wait()
-	close(doneChan)
+	// Attendre que toutes les goroutines se terminent
+	go func() {
+		wg.Wait()
+		close(doneChan)
+		close(errorChan)
+	}()
 
-	// Process errors
+	// Gestion des erreurs et arrêt
 	var errors []error
 	for {
 		select {
-		case err := <-errorChan:
+		case err, ok := <-errorChan:
+			if !ok {
+				errorChan = nil // Évite de bloquer sur errorChan s'il est fermé
+				continue
+			}
 			errors = append(errors, err)
 		case <-doneChan:
 			if len(errors) > 0 {
@@ -167,9 +184,12 @@ func main() {
 				log.Println("Successfully processed all projects")
 			}
 			return
+		case sig := <-mychan:
+			log.Printf("Received signal: %s. Exiting...", sig)
+			cancel()
+			return
 		}
 	}
-
 }
 
 func validateEnvVars() error {
